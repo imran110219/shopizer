@@ -602,7 +602,7 @@ public class OrderServiceImpl  extends SalesManagerEntityServiceImpl<Long, Order
 
 		List<Transaction> transactions = transactionService.listTransactions(startDate, endDate);
 
-		List<Order> returnOrders = null;
+		List<Order> returnOrders = new ArrayList<>();
 
 		if(!CollectionUtils.isEmpty(transactions)) {
 
@@ -620,13 +620,7 @@ public class OrderServiceImpl  extends SalesManagerEntityServiceImpl<Long, Order
 				}
 
 				//put transaction
-				List<Transaction> listTransactions = null;
-				if(processingTransactions.containsKey(order.getId())) {
-					listTransactions = processingTransactions.get(order.getId());
-				} else {
-					listTransactions = new ArrayList<Transaction>();
-					processingTransactions.put(order.getId(), listTransactions);
-				}
+                List<Transaction> listTransactions = processingTransactions.computeIfAbsent(order.getId(), k -> new ArrayList<>());
 				listTransactions.add(trx);
 			}
 
@@ -648,20 +642,13 @@ public class OrderServiceImpl  extends SalesManagerEntityServiceImpl<Long, Order
 				List<Transaction> trx = processingTransactions.get(orderId);
 				if(CollectionUtils.isNotEmpty(trx)) {
 
-					boolean capturable = true;
-					for(Transaction t : trx) {
+                    boolean capturable = trx.stream()
+                            .noneMatch(t -> t.getTransactionType() == TransactionType.CAPTURE ||
+                                    t.getTransactionType() == TransactionType.AUTHORIZECAPTURE ||
+                                    t.getTransactionType() == TransactionType.REFUND);
 
-						if(TransactionType.CAPTURE.name().equals(t.getTransactionType().name())) {
-							capturable = false;
-						} else if(TransactionType.AUTHORIZECAPTURE.name().equals(t.getTransactionType().name())) {
-							capturable = false;
-						} else if(TransactionType.REFUND.name().equals(t.getTransactionType().name())) {
-							capturable = false;
-						}
 
-					}
-
-					if(capturable) {
+                    if(capturable) {
 						Order o = preAuthOrders.get(orderId);
 						returnOrders.add(o);
 					}
